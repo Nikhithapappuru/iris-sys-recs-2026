@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Gukesh12garry@
+      MYSQL_DATABASE: iris_systems_rec_task_development
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - rails_network
+
+  app:
+    build: .
+    container_name: rails-app
+    depends_on:
+      - db
+    ports:
+      - "8080:3000"
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Gukesh12garry@
+      DATABASE_NAME: iris_systems_rec_task_development
+    volumes:
+      - .:/app
+    networks:
+      - rails_network
+
+volumes:
+  mysql_data:
+
+networks:
+  rails_network:
