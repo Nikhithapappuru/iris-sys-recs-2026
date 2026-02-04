@@ -21,6 +21,8 @@ services:
       DATABASE_USERNAME: root
       DATABASE_PASSWORD: Gukesh12garry@
       DATABASE_NAME: iris_systems_rec_task_development
+    volumes:
+      - rails_logs:/app/log
     networks:
       - rails_network
     command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
@@ -35,6 +37,8 @@ services:
       DATABASE_USERNAME: root
       DATABASE_PASSWORD: Gukesh12garry@
       DATABASE_NAME: iris_systems_rec_task_development
+    volumes:
+      - rails_logs:/app/log
     networks:
       - rails_network
     command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
@@ -49,6 +53,8 @@ services:
       DATABASE_USERNAME: root
       DATABASE_PASSWORD: Gukesh12garry@
       DATABASE_NAME: iris_systems_rec_task_development
+    volumes:
+      - rails_logs:/app/log
     networks:
       - rails_network
     command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
@@ -60,6 +66,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx_config:/etc/nginx
     depends_on:
       - app1
       - app2
@@ -69,6 +76,8 @@ services:
 
 volumes:
   db_data:
+  nginx_config:
+  rails_logs:
 
 networks:
   rails_network:
