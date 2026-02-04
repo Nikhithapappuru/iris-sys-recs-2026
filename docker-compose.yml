@@ -11,9 +11,37 @@ services:
     networks:
       - rails_network
 
-  app:
+  app1:
     build: .
-    container_name: rails-app
+    container_name: rails-app1
+    depends_on:
+      - db
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Gukesh12garry@
+      DATABASE_NAME: iris_systems_rec_task_development
+    networks:
+      - rails_network
+    command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
+
+  app2:
+    build: .
+    container_name: rails-app2
+    depends_on:
+      - db
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Gukesh12garry@
+      DATABASE_NAME: iris_systems_rec_task_development
+    networks:
+      - rails_network
+    command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
+
+  app3:
+    build: .
+    container_name: rails-app3
     depends_on:
       - db
     environment:
@@ -33,7 +61,9 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - app
+      - app1
+      - app2
+      - app3
     networks:
       - rails_network
 
