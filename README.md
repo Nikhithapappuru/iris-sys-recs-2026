@@ -1,138 +1,121 @@
-# iris-sys-recs-2026
-This repository contains my work for the IRIS Systems Team Recriutment Task 2026.
+# NGINX-PROXY
+
+The objective of this task is to introduce NGINX as reverse proxy.
+
+### Architecture:
+
+Browser(port 80)-> Nginx-> Rails(3000)->MYSQL
+
+Users should only access NGINX
+- Rails should not be exposed directly
+- Nginx should proxy requests to Rails
+- Nginx later must load-balance between 3 Rails containers
+- All traffic should go through NGINX
+
+Firstly created a file `nginx.conf`
+```
+events {}
 
 
-## Local Application Setup and Debugging
+http {
+    upstream rails_app {
+        server app:3000;
+    }
 
-Before containerizing the Rails application, I verified and debugged the app locally. This will make sure the base application is stable and is in well working postion before Dockerization.
 
-### Ruby Environment Setup (rbenv)
+    server {
+        listen 80;
 
-I have installed Ruby using rbenv, which allows version management.
-Made a setup where i have installed rbenv, enabled it in the shell, installed Ruby 3.4.1, set it as default, and installed Bundler to manage gems.
 
-Firstly, i have downloaded the rbenv souce code from the Github.
-```
-git clone https://github.com/rbenv/rbenv.git ~/.rbenv
-```
-Added rbenv to the path and appended it to ~/.bashrc
-
-```
-echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
-```
-Reloaded the .bashrc
-
-```
-source ~/.bashrc
+        location / {
+            proxy_pass http://rails_app;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+    }
+}
 ```
 
-To setup shims and Ruby version switching
-```
-rbenv init
-```
-Installed ruby-plugin for rbenv
-```
-git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
-```
+Updated the docker-compose.yml file
+- Added the service nginx.
 
-Downloaded Ruby 3.4.1 source code
-```
-rbenv install 3.4.1
-```
-Set Ruby 3.4.1 as the default Ruby
-```
-rbenv global 3.4.1
-```
-
-Installed Bundler version 2.6.6 as required.
-```
-gem install bundler -v 2.6.6
 ```
 
 
-### Bug found in the Gemfile
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+ networks:
+      - rails_network
 
-While running the `bundle install`, there was a Version mismatch.
 
-**BUG:**
+volumes:
+  db_data:
 
-The Gemfile incorrectly specified:
 
-```
-gem 'activesupport', '~> 8.1', '>= 8.1.2'
+networks:
+  rails_network:
 
-gem 'activerecord', '~> 8.1', '>= 8.1.2'
-```
-
-Where these version are compatible with the Rails 7.0.10
-
-Rails 7 requires 
---> activesupport 7.x
---> active record 7.x
-
-Therefore the two lines from the Gemfile are removed.
-```
-bundle _2.6.6_ install
-```
- After fixing , this resolved the dependency conflict.
-
- ### MYSQL Connection Error and Authentication modification.
-
- On running the command :
- ```
- rails db:create
-```
-it gave an error
-```
-Access denied for user 'root'@'localhost'
-```
-Becuase on UBUNTU/WSL , MYSQL installs with socket authentication type and accepts the root users without the passwords.
-But Rails uses password authentication and therefore MYSQL ignored the password and rejected the rails even the socket path is mentioned in the default segment of database.yml file
-```
-default: &default
-  adapter: mysql2
-  encoding: utf8mb4
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  username: root
-  password: Gukesh12garry@
-  socket: /var/run/mysqld/mysqld.sock
-```
-**FIX made :**
-Converted root to mysql_native_password by altering it.
- ```
- sudo mysql
- ```
- ```
-ALTER USER 'root'@'localhost'
-IDENTIFIED WITH mysql_native_password BY 'yourpassword';
-```
-```
-FLUSH PRIVILEGES;
-```
-```
-EXIT;
-```
-and tested it by using password authentication.
-```
-mysql -u root -p
 ```
 
-### Rails Database Setup and running the application locally:
+What changed now is that Rails requires a fully initialized environment at runtime because another container (Nginx) depends on it.
+In the earlier phase, Rails only talked to the host machine, so Docker’s default startup was enough.
 
-After fixing MYSQL Authentication:
+On running the command:
+```
+docker compose build
+```
+- reads the docker-compose.yml file
+- Find all the services: app, db, nginx
+- For each service, the Dockerfile is checked and rebuilds if files are changed.
+- New images are created and caches layers for speed.
 
-the commands 
+On running the command:
 ```
-rails db: create
+docker compose up
 ```
-and
-```
-rails db: migrate
-```
-executed succesfully.
 
-I have started the rails server:
+This is the error
+In the logs , the unexpected line was
+rails-app | [ActionDispatch::HostAuthorization::DefaultResponseApp] Blocked hosts: wpad.nitk.ac.in
+
+This happens because:
+
+Windows / corporate networks / college networks automatically request wpad.dat for proxy auto-configuration.
+
+Rails blocks unknown hosts for security → that is why it shows:
+
+Blocked hosts: wpad.nitk.ac.in
+
+
+The Nginx access log line
+nginx-proxy | 172.21.0.1 - - [04/Feb/2026] "GET /wpad.dat HTTP/1.1" 403
+
+
+This is also because Windows tries to request /wpad.dat.
+
+Nginx receives the request -> passes it to Rails -> Rails blocks it (403).
+
+Solution for this problem is to add config.hosts.clear in the file config/environments/development.rb for the development, so that the Rails accepts the users other than the system host.
+
+There was one more error arised for not running the migrations:
+
+So , run the command:
 ```
-rails server
+docker compose run app rails db:migrate
 ```
-The application loaded successfully.
+
+On running the command 
+```
+docker compose up
+```
+The application runs on the port 80
+```
+http://localhost/
+```
