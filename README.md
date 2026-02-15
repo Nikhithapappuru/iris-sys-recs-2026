@@ -1,6 +1,14 @@
 # iris-sys-recs-2026
 This repository contains my work for the IRIS Systems Team Recriutment Task 2026.
+## Branches
 
+- [dockerize]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/dockerize
+- [docker-compose-setup]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/docker-compose-setup
+- [nginx-proxy]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/nginx-proxy
+- [load-balancing]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/load-balancing
+- [persistence]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/persistence
+- [rate-limiting]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/rate-limiting
+- [monitoring]https://github.com/Nikhithapappuru/iris-sys-recs-2026/tree/monitoring
 
 ## Local Application Setup and Debugging
 
@@ -136,3 +144,6 @@ I have started the rails server:
 rails server
 ```
 The application loaded successfully.
+
+
+
