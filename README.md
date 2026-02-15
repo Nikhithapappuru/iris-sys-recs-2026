@@ -1,138 +1,100 @@
-# iris-sys-recs-2026
-This repository contains my work for the IRIS Systems Team Recriutment Task 2026.
+# Monitoring:
 
+The objective of this task is to monitor the working of the containers while running the application.
 
-## Local Application Setup and Debugging
+### Architecture:
 
-Before containerizing the Rails application, I verified and debugged the app locally. This will make sure the base application is stable and is in well working postion before Dockerization.
+cAdvisor -> Prometheus -> Grafana
 
-### Ruby Environment Setup (rbenv)
+- cAdvisor collects the container metrics.
 
-I have installed Ruby using rbenv, which allows version management.
-Made a setup where i have installed rbenv, enabled it in the shell, installed Ruby 3.4.1, set it as default, and installed Bundler to manage gems.
-
-Firstly, i have downloaded the rbenv souce code from the Github.
+Firstly, added the services Prometheus and grafana to the docker-compose.yml file
 ```
-git clone https://github.com/rbenv/rbenv.git ~/.rbenv
-```
-Added rbenv to the path and appended it to ~/.bashrc
+Added to docker-compose.yml 
+ cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    restart: always
+    ports:
+      - "8081:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - rails_network
 
-```
-echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
-```
-Reloaded the .bashrc
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - rails_network
 
-```
-source ~/.bashrc
-```
-
-To setup shims and Ruby version switching
-```
-rbenv init
-```
-Installed ruby-plugin for rbenv
-```
-git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
-```
-
-Downloaded Ruby 3.4.1 source code
-```
-rbenv install 3.4.1
-```
-Set Ruby 3.4.1 as the default Ruby
-```
-rbenv global 3.4.1
-```
-
-Installed Bundler version 2.6.6 as required.
-```
-gem install bundler -v 2.6.6
-```
-
-
-### Bug found in the Gemfile
-
-While running the `bundle install`, there was a Version mismatch.
-
-**BUG:**
-
-The Gemfile incorrectly specified:
-
-```
-gem 'activesupport', '~> 8.1', '>= 8.1.2'
-
-gem 'activerecord', '~> 8.1', '>= 8.1.2'
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: always
+    ports:
+      - "3001:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - rails_network
 ```
 
-Where these version are compatible with the Rails 7.0.10
+In the file promtheus.yml file , added
+```
+global:
+  scrape_interval: 5s
 
-Rails 7 requires 
---> activesupport 7.x
---> active record 7.x
+scrape_configs:
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+```
+So that promethues scrapes metrics every 5 seconds from cAdvisor:8080 and stores time-series data.
+This is a pull-based monitoring.
 
-Therefore the two lines from the Gemfile are removed.
+Next pulled and started the containers:
 ```
-bundle _2.6.6_ install
+docker compose up –build
 ```
- After fixing , this resolved the dependency conflict.
+Next checked the target( in status ) in prometheus dashboard at
+```
+http://localhost:9090/targets
+```
+At `localhost:3000`, logged into grafana
+Opened a new dashboard and added prometheus as the data source 
+Prometheus URL `(http://prometheus:9090)` ( Not localhost:9090 since prometheus is running in a container and so is grafana)
+And then added  a new visualization `(Docker monitoring)`
+And given the PromQL query
+```
+rate(container_cpu_usage_seconds_total[1m]) 
+```
+Where per-second increase in  cummulative CPU time used by the container is calculated over last 1 minute.
 
- ### MYSQL Connection Error and Authentication modification.
-
- On running the command :
- ```
- rails db:create
+And then added a new visualization `(Memory Usage)`
+Given PromQL query:
 ```
-it gave an error
-```
-Access denied for user 'root'@'localhost'
-```
-Becuase on UBUNTU/WSL , MYSQL installs with socket authentication type and accepts the root users without the passwords.
-But Rails uses password authentication and therefore MYSQL ignored the password and rejected the rails even the socket path is mentioned in the default segment of database.yml file
-```
-default: &default
-  adapter: mysql2
-  encoding: utf8mb4
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  username: root
-  password: Gukesh12garry@
-  socket: /var/run/mysqld/mysqld.sock
-```
-**FIX made :**
-Converted root to mysql_native_password by altering it.
- ```
- sudo mysql
- ```
- ```
-ALTER USER 'root'@'localhost'
-IDENTIFIED WITH mysql_native_password BY 'yourpassword';
-```
-```
-FLUSH PRIVILEGES;
-```
-```
-EXIT;
-```
-and tested it by using password authentication.
-```
-mysql -u root -p
+container_memory_usage_bytes
 ```
 
-### Rails Database Setup and running the application locally:
+Added new visualization `(Network receive rate)` and given PromQL query:
+```
+container_network_receive_bytes_total[1m]
+```
 
-After fixing MYSQL Authentication:
+Added new visualization `(Running container count)` dashboard and given PromQL query:
+```
+ count(container_last_seen)
+```
+Which gives all the infrastructure containers.
 
-the commands 
-```
-rails db: create
-```
-and
-```
-rails db: migrate
-```
-executed succesfully.
 
-I have started the rails server:
-```
-rails server
-```
-The application loaded successfully.
+Grafana connects to Prometheus as a data source and visualizes metrics via PromQL queries.
