@@ -4,16 +4,8 @@ The objective of this task is to ensure data is persisted when the container res
 
 So we have only persisted the nginx.config file
 In this task we will have persistent nginx configuration files and persistent DB as well.
-/etc/nginx/
-├── nginx.conf
-├── conf.d/
-│   ├── default.conf
-│   ├── app1.conf
-│   └── app2.conf
-├── mime.types
-├── modules/
+/etc/nginx/ nginx.conf,conf.d/(default.conf( app1.conf, app2.conf)), mime.types, modules/
 
-All these files will be persisted.
 
 The components that are persisted are
 - MYSQL data
@@ -60,7 +52,8 @@ docker compose up –build
 The application runs successfully.
 
 On running the command
-``` docker compose down
+```
+ docker compose down
 ```
 the containers will be removed 
 And on running the command 
