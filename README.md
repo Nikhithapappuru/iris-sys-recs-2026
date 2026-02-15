@@ -1,138 +1,60 @@
-# iris-sys-recs-2026
-This repository contains my work for the IRIS Systems Team Recriutment Task 2026.
+# docker-compose-setup
+
+- Multi-container Architecture with Docker Compose
+- The main objective of this task is to run Rails and MYSQL as seperate containers using Docker Compose
+
+ A docker-compose.yml file is created with the services:
+- app(Rails)
+- db (MYSQL 8)
+- Custom Bridge network
 
 
-## Local Application Setup and Debugging
+## Modified the configuration
 
-Before containerizing the Rails application, I verified and debugged the app locally. This will make sure the base application is stable and is in well working postion before Dockerization.
-
-### Ruby Environment Setup (rbenv)
-
-I have installed Ruby using rbenv, which allows version management.
-Made a setup where i have installed rbenv, enabled it in the shell, installed Ruby 3.4.1, set it as default, and installed Bundler to manage gems.
-
-Firstly, i have downloaded the rbenv souce code from the Github.
-```
-git clone https://github.com/rbenv/rbenv.git ~/.rbenv
-```
-Added rbenv to the path and appended it to ~/.bashrc
+Updated `database.yml` to use the environment variables:
 
 ```
-echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
-```
-Reloaded the .bashrc
-
-```
-source ~/.bashrc
+host: <%= ENV["DATABASE_HOST"] %>
+username: <%= ENV["DATABASE_USERNAME"] %>
+password: <%= ENV["DATABASE_PASSWORD"] %>
+database: <%= ENV["DATABASE_NAME"] %>
 ```
 
-To setup shims and Ruby version switching
-```
-rbenv init
-```
-Installed ruby-plugin for rbenv
-```
-git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
-```
+This is because the local host refers to container itself, so we must use Docker DNS hostname (db)
 
-Downloaded Ruby 3.4.1 source code
+Running the docker-compose.yml file:
 ```
-rbenv install 3.4.1
+docker compose build
 ```
-Set Ruby 3.4.1 as the default Ruby
+So the Rails app will be built , the network and the volumes will be created, MYSQL image will be pulled.
 ```
-rbenv global 3.4.1
+docker compose up
 ```
+So the MYSQL container will be started, Rails container will be started, logs will be displayed and Rails will try to connect to MYSQL Container.
 
-Installed Bundler version 2.6.6 as required.
-```
-gem install bundler -v 2.6.6
-```
+At the port 8080, we will access the application:
+
+But an error ActiveRecord: PendingMigrationError arises.
+
+This error arises because the MYSQL is not set up and the Rails is trying to make the connections before the MYSQL is ready.
+
+Rails check the schema_migrations table to see if migrations were applied.
+So inside the new MYSQL container:
+→The DB is empty
+→No tables exist
+→No migrations applied
+That is why there is an error
 
 
-### Bug found in the Gemfile
+Now on running the command
+```
+docker compose run app rails db:migrate
+```
+The migrations will be applied , the db structure will be created.
 
-While running the `bundle install`, there was a Version mismatch.
+On the command
+```
+docker compose up
+```
+The application will be running on the port 8080.
 
-**BUG:**
-
-The Gemfile incorrectly specified:
-
-```
-gem 'activesupport', '~> 8.1', '>= 8.1.2'
-
-gem 'activerecord', '~> 8.1', '>= 8.1.2'
-```
-
-Where these version are compatible with the Rails 7.0.10
-
-Rails 7 requires 
---> activesupport 7.x
---> active record 7.x
-
-Therefore the two lines from the Gemfile are removed.
-```
-bundle _2.6.6_ install
-```
- After fixing , this resolved the dependency conflict.
-
- ### MYSQL Connection Error and Authentication modification.
-
- On running the command :
- ```
- rails db:create
-```
-it gave an error
-```
-Access denied for user 'root'@'localhost'
-```
-Becuase on UBUNTU/WSL , MYSQL installs with socket authentication type and accepts the root users without the passwords.
-But Rails uses password authentication and therefore MYSQL ignored the password and rejected the rails even the socket path is mentioned in the default segment of database.yml file
-```
-default: &default
-  adapter: mysql2
-  encoding: utf8mb4
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  username: root
-  password: Gukesh12garry@
-  socket: /var/run/mysqld/mysqld.sock
-```
-**FIX made :**
-Converted root to mysql_native_password by altering it.
- ```
- sudo mysql
- ```
- ```
-ALTER USER 'root'@'localhost'
-IDENTIFIED WITH mysql_native_password BY 'yourpassword';
-```
-```
-FLUSH PRIVILEGES;
-```
-```
-EXIT;
-```
-and tested it by using password authentication.
-```
-mysql -u root -p
-```
-
-### Rails Database Setup and running the application locally:
-
-After fixing MYSQL Authentication:
-
-the commands 
-```
-rails db: create
-```
-and
-```
-rails db: migrate
-```
-executed succesfully.
-
-I have started the rails server:
-```
-rails server
-```
-The application loaded successfully.
