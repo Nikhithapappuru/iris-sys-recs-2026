@@ -1,138 +1,81 @@
-# iris-sys-recs-2026
-This repository contains my work for the IRIS Systems Team Recriutment Task 2026.
+# Data Persistence
+
+The objective of this task is to ensure data is persisted when the container restarts.
+
+So we have only persisted the nginx.config file
+In this task we will have persistent nginx configuration files and persistent DB as well.
+/etc/nginx/
+├── nginx.conf
+├── conf.d/
+│   ├── default.conf
+│   ├── app1.conf
+│   └── app2.conf
+├── mime.types
+├── modules/
+
+All these files will be persisted.
+
+The components that are persisted are
+- MYSQL data
+- NGINX config
+- Rails logs
 
 
-## Local Application Setup and Debugging
-
-Before containerizing the Rails application, I verified and debugged the app locally. This will make sure the base application is stable and is in well working postion before Dockerization.
-
-### Ruby Environment Setup (rbenv)
-
-I have installed Ruby using rbenv, which allows version management.
-Made a setup where i have installed rbenv, enabled it in the shell, installed Ruby 3.4.1, set it as default, and installed Bundler to manage gems.
-
-Firstly, i have downloaded the rbenv souce code from the Github.
-```
-git clone https://github.com/rbenv/rbenv.git ~/.rbenv
-```
-Added rbenv to the path and appended it to ~/.bashrc
+### Docker volumes:
 
 ```
-echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
+volumes:
+  db_data:
+  nginx_config:
+  rails_logs:
 ```
-Reloaded the .bashrc
+In the docker-compose.yml file, under the service nginx:
+```
+- nginx_config:/etc/nginx
+```
+ is added, so that the nginx directory is persisted in the volume named nginx_config.
 
-```
-source ~/.bashrc
-```
+Also persisted the rails logs to audit the running of the application:
 
-To setup shims and Ruby version switching
-```
-rbenv init
-```
-Installed ruby-plugin for rbenv
-```
-git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
-```
-
-Downloaded Ruby 3.4.1 source code
-```
-rbenv install 3.4.1
-```
-Set Ruby 3.4.1 as the default Ruby
-```
-rbenv global 3.4.1
-```
-
-Installed Bundler version 2.6.6 as required.
-```
-gem install bundler -v 2.6.6
-```
+Added proxy_http_version 1.1 and Connection "" to location/ in the file nginx.conf
 
 
-### Bug found in the Gemfile
+By default, Nginx proxies connections using HTTP/1.0,
+which does not support persistent connections or WebSockets.
+Rails, Puma, and ActionCable all benefit from HTTP/1.1 features.
 
-While running the `bundle install`, there was a Version mismatch.
+Setting proxy_http_version 1.1 enables persistent upstream connections.
 
-**BUG:**
+Clearing the Connection header ensures Nginx does not send
+Connection: close, enabling keep-alive and efficient load balancing.
+Reduces the backend restart per request.
 
-The Gemfile incorrectly specified:
+This results in better performance and avoids dropped connections
+in multi-container environments.
 
+On running the command:
 ```
-gem 'activesupport', '~> 8.1', '>= 8.1.2'
+docker compose up –build
+```
+The application runs successfully.
 
-gem 'activerecord', '~> 8.1', '>= 8.1.2'
+On running the command
+``` docker compose down
 ```
+the containers will be removed 
+And on running the command 
+```
+docker volume ls
+```
+We can see the volumes stored
 
-Where these version are compatible with the Rails 7.0.10
-
-Rails 7 requires 
---> activesupport 7.x
---> active record 7.x
-
-Therefore the two lines from the Gemfile are removed.
-```
-bundle _2.6.6_ install
-```
- After fixing , this resolved the dependency conflict.
-
- ### MYSQL Connection Error and Authentication modification.
-
- On running the command :
- ```
- rails db:create
-```
-it gave an error
-```
-Access denied for user 'root'@'localhost'
-```
-Becuase on UBUNTU/WSL , MYSQL installs with socket authentication type and accepts the root users without the passwords.
-But Rails uses password authentication and therefore MYSQL ignored the password and rejected the rails even the socket path is mentioned in the default segment of database.yml file
-```
-default: &default
-  adapter: mysql2
-  encoding: utf8mb4
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  username: root
-  password: Gukesh12garry@
-  socket: /var/run/mysqld/mysqld.sock
-```
-**FIX made :**
-Converted root to mysql_native_password by altering it.
- ```
- sudo mysql
- ```
- ```
-ALTER USER 'root'@'localhost'
-IDENTIFIED WITH mysql_native_password BY 'yourpassword';
+Inspecting  the volume inside the container through these comamands
+``` 
+docker run -it --rm -v iris-sys-recs-2026_rails_logs:/data alpine sh
 ```
 ```
-FLUSH PRIVILEGES;
-```
-```
-EXIT;
-```
-and tested it by using password authentication.
-```
-mysql -u root -p
+ls /data
 ```
 
-### Rails Database Setup and running the application locally:
+We get development.log, which ensures the persistence.
 
-After fixing MYSQL Authentication:
-
-the commands 
-```
-rails db: create
-```
-and
-```
-rails db: migrate
-```
-executed succesfully.
-
-I have started the rails server:
-```
-rails server
-```
-The application loaded successfully.
