@@ -1,138 +1,104 @@
-# iris-sys-recs-2026
-This repository contains my work for the IRIS Systems Team Recriutment Task 2026.
+# Load-balancing
 
+The main objective of this task is to scale Rails horizontally with 3 containers.
 
-## Local Application Setup and Debugging
+### Architecture:
+ NGINX-> app1, app2, app3 -> MYSQL
 
-Before containerizing the Rails application, I verified and debugged the app locally. This will make sure the base application is stable and is in well working postion before Dockerization.
+### Nginx Upstream:
 
-### Ruby Environment Setup (rbenv)
-
-I have installed Ruby using rbenv, which allows version management.
-Made a setup where i have installed rbenv, enabled it in the shell, installed Ruby 3.4.1, set it as default, and installed Bundler to manage gems.
-
-Firstly, i have downloaded the rbenv souce code from the Github.
-```
-git clone https://github.com/rbenv/rbenv.git ~/.rbenv
-```
-Added rbenv to the path and appended it to ~/.bashrc
+Made changes in the nginx.conf file:
 
 ```
-echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
-```
-Reloaded the .bashrc
+upstream rails_app {
+    server app1:3000;
+    server app2:3000;
+    server app3:3000;
+}
 
 ```
-source ~/.bashrc
-```
 
-To setup shims and Ruby version switching
-```
-rbenv init
-```
-Installed ruby-plugin for rbenv
-```
-git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
-```
+->Now Nginx knows about three backend servers.
+->Nginx automatically load balances using round-robin.
 
-Downloaded Ruby 3.4.1 source code
+Added the headers:
 ```
-rbenv install 3.4.1
-```
-Set Ruby 3.4.1 as the default Ruby
-```
-rbenv global 3.4.1
-```
-
-Installed Bundler version 2.6.6 as required.
-```
-gem install bundler -v 2.6.6
-```
+server {
+        listen 80;
 
 
-### Bug found in the Gemfile
+        location / {
+            proxy_pass http://rails_app;
 
-While running the `bundle install`, there was a Version mismatch.
 
-**BUG:**
-
-The Gemfile incorrectly specified:
-
-```
-gem 'activesupport', '~> 8.1', '>= 8.1.2'
-
-gem 'activerecord', '~> 8.1', '>= 8.1.2'
-```
-
-Where these version are compatible with the Rails 7.0.10
-
-Rails 7 requires 
---> activesupport 7.x
---> active record 7.x
-
-Therefore the two lines from the Gemfile are removed.
-```
-bundle _2.6.6_ install
-```
- After fixing , this resolved the dependency conflict.
-
- ### MYSQL Connection Error and Authentication modification.
-
- On running the command :
- ```
- rails db:create
-```
-it gave an error
-```
-Access denied for user 'root'@'localhost'
-```
-Becuase on UBUNTU/WSL , MYSQL installs with socket authentication type and accepts the root users without the passwords.
-But Rails uses password authentication and therefore MYSQL ignored the password and rejected the rails even the socket path is mentioned in the default segment of database.yml file
-```
-default: &default
-  adapter: mysql2
-  encoding: utf8mb4
-  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
-  username: root
-  password: Gukesh12garry@
-  socket: /var/run/mysqld/mysqld.sock
-```
-**FIX made :**
-Converted root to mysql_native_password by altering it.
- ```
- sudo mysql
- ```
- ```
-ALTER USER 'root'@'localhost'
-IDENTIFIED WITH mysql_native_password BY 'yourpassword';
-```
-```
-FLUSH PRIVILEGES;
-```
-```
-EXIT;
-```
-and tested it by using password authentication.
-```
-mysql -u root -p
+           
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+}
 ```
 
-### Rails Database Setup and running the application locally:
+Added the services app1, app2, app3 to the docker-compose.yml file to convert it into a load balanced set up if three containers start.
+```
+app1:
+    build: .
+    container_name: rails-app1
+    depends_on:
+      - db
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Gukesh12garry@
+      DATABASE_NAME: iris_systems_rec_task_development
+    networks:
+      - rails_network
+    command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
 
-After fixing MYSQL Authentication:
 
-the commands 
-```
-rails db: create
-```
-and
-```
-rails db: migrate
-```
-executed succesfully.
+  app2:
+    build: .
+    container_name: rails-app2
+    depends_on:
+      - db
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Gukesh12garry@
+      DATABASE_NAME: iris_systems_rec_task_development
+    networks:
+      - rails_network
+    command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
 
-I have started the rails server:
+
+  app3:
+    build: .
+    container_name: rails-app3
+    depends_on:
+      - db
+    environment:
+      DATABASE_HOST: db
+      DATABASE_USERNAME: root
+      DATABASE_PASSWORD: Gukesh12garry@
+      DATABASE_NAME: iris_systems_rec_task_development
+    networks:
+      - rails_network
+    command: bash -lc "bundle _2.6.6_ exec rails s -b 0.0.0.0"
+
 ```
-rails server
+On running the command:
 ```
-The application loaded successfully.
+docker compose up -build
+```
+
+The application run successfully at
+```
+http://localhost
+```
+Where all the three rails application containers run successfully.
+
+
+
+ 
