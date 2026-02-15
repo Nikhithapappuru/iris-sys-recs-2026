@@ -98,6 +98,10 @@ The application run successfully at
 http://localhost
 ```
 Where all the three rails application containers run successfully.
+Under the heavy load:
+- 503 errors occured which was because of Puma thread saturation.
+
+
 
 
 
